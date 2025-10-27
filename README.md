@@ -69,42 +69,44 @@ All communication is private and isolated within Azure using Private Link and VN
 * Azure DevOps linked securely with Key Vault via variable groups
 * No credentials or secrets stored in YAML or Terraform code
 
-```
-## Folder Structure
+Here’s the corrected and neatly formatted **README.md** section showing a clean and professional folder structure for your project:
+
+```markdown
+# 📁 Project Structure — northbay-test
 
 ```
+
 northbay-test/
+├── argocd/
+│   ├── app-bluegreen.yaml
+│   ├── argo-install.yaml
+│   └── namespace.yaml
 │
-├── argocd/                       
-│   ├── app-bluegreen.yaml        
-│   ├── argo-install.yaml         
-│   └── namespace.yaml           
+├── chart/
+│   ├── Chart.yaml
+│   ├── values.yaml
+│   └── templates/
+│       ├── deployment-blue.yaml
+│       ├── deployment-green.yaml
+│       ├── hpa.yaml
+│       ├── ingress.yaml
+│       ├── service.yaml
+│       └── serviceaccount.yaml
 │
-├── chart/                        
-│   ├── templates/                
-│   │   ├── deployment-blue.yaml
-│   │   ├── deployment-green.yaml
-│   │   ├── hpa.yaml
-│   │   ├── ingress.yaml
-│   │   ├── service.yaml
-│   │   └── serviceaccount.yaml
-│   ├── chart.yaml                
-│   └── values.yaml               
+├── key-vault/
+│   └── secrets.sh
 │
-├── key-vault/                    
-│   └── secrets.sh                
+├── pipelines/
+│   ├── aks-infra.yml
+│   └── app-deploy.yml
 │
-├── pipelines/                    
-│   ├── aks-infra.yml             
-│   └── app-deploy.yml        
-│
-├── terraform/                    
-│   ├── main.tf                   
-│   ├── variables.tf              
-│   ├── outputs.tf                
-│   ├── tfvars/                   
+├── terraform/
+│   ├── main.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   ├── tfvars/
 │   │   └── stage.tfvars
-│   └── modules/                  
+│   └── modules/
 │       ├── aks/
 │       ├── container_registry/
 │       ├── key_vault/
@@ -114,10 +116,29 @@ northbay-test/
 │       ├── private_endpoint/
 │       └── virtual_network/
 │
-└── README.md                  
+└── README.md
 
 ```
+
+---
+
+### 🧩 Folder Summary
+
+| Folder | Description |
+|--------|--------------|
+| **argocd/** | Contains ArgoCD manifests for GitOps-based deployment (blue/green strategy, installation, and namespace setup). |
+| **chart/** | Helm chart directory with Kubernetes templates (Deployments, Services, Ingress, HPA, etc.) and configuration files. |
+| **key-vault/** | Shell scripts and configurations for managing Azure Key Vault secrets. |
+| **pipelines/** | Azure DevOps YAML pipeline definitions for infrastructure (`aks-infra.yml`) and application deployment (`app-deploy.yml`). |
+| **terraform/** | IaC module defining AKS infrastructure — includes reusable modules, environment-specific `.tfvars`, and backend configuration. |
+| **terraform/modules/** | Modular Terraform components such as AKS, VNet, Key Vault, Log Analytics, and Private Endpoints. |
+| **README.md** | Documentation describing setup, structure, and usage guidelines for the project. |
+
+---
+
+Would you like me to also include a **setup section** (like `How to Deploy`, `Terraform Init`, `ArgoCD Sync`, and `Helm Install` commands) in this README so it looks production-grade and ready for GitHub?
 ```
+
 ## How It Works
 
 ### Step 1: Backend Initialization
