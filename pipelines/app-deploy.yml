@@ -10,7 +10,7 @@ variables:
 - name: azureSubscription
   value: AzureSubscription
 - name: acrName
-  value: aksacrharshad      
+  value: northbay     
 - name: imageName
   value: nginx-bluegreen
 - name: aksResourceGroup
