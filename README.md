@@ -69,41 +69,42 @@ All communication is private and isolated within Azure using Private Link and VN
 * Azure DevOps linked securely with Key Vault via variable groups
 * No credentials or secrets stored in YAML or Terraform code
 
----
-
+```
 ## Folder Structure
+
+```
 northbay-test/
 │
-├── argocd/                       # ArgoCD GitOps configurations
-│   ├── app-bluegreen.yaml        # ArgoCD Application definition for GitOps
-│   ├── argo-install.yaml         # ArgoCD installation manifest
-│   └── namespace.yaml            # ArgoCD namespace configuration
+├── argocd/                       
+│   ├── app-bluegreen.yaml        
+│   ├── argo-install.yaml         
+│   └── namespace.yaml           
 │
-├── chart/                        # Helm chart for Kubernetes app deployment
-│   ├── templates/                # Kubernetes manifests (Helm templates)
+├── chart/                        
+│   ├── templates/                
 │   │   ├── deployment-blue.yaml
 │   │   ├── deployment-green.yaml
 │   │   ├── hpa.yaml
 │   │   ├── ingress.yaml
 │   │   ├── service.yaml
 │   │   └── serviceaccount.yaml
-│   ├── chart.yaml                # Helm chart metadata
-│   └── values.yaml               # Default configuration values for Helm chart
+│   ├── chart.yaml                
+│   └── values.yaml               
 │
-├── key-vault/                    # Key Vault seeding and backend setup
-│   └── secrets.sh                # Script to create and populate Key Vault secrets
+├── key-vault/                    
+│   └── secrets.sh                
 │
-├── pipelines/                    # Azure DevOps YAML pipelines
-│   ├── aks-infra.yml             # Terraform infrastructure provisioning pipeline
-│   └── app-deploy.yml            # Application build and deployment pipeline
+├── pipelines/                    
+│   ├── aks-infra.yml             
+│   └── app-deploy.yml        
 │
-├── terraform/                    # Terraform root configuration and modules
-│   ├── main.tf                   # Root Terraform configuration (AKS, ACR, Key Vault)
-│   ├── variables.tf              # Variable definitions
-│   ├── outputs.tf                # Terraform outputs
-│   ├── tfvars/                   # Environment-specific variables
+├── terraform/                    
+│   ├── main.tf                   
+│   ├── variables.tf              
+│   ├── outputs.tf                
+│   ├── tfvars/                   
 │   │   └── stage.tfvars
-│   └── modules/                  # Modular Terraform structure
+│   └── modules/                  
 │       ├── aks/
 │       ├── container_registry/
 │       ├── key_vault/
@@ -113,8 +114,9 @@ northbay-test/
 │       ├── private_endpoint/
 │       └── virtual_network/
 │
-└── README.md                     # Documentation and architectural overview
+└── README.md                  
 
+```
 ## How It Works
 
 ### Step 1: Backend Initialization
