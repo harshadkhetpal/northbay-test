@@ -1,0 +1,79 @@
+name: $(BuildDefinitionName)_$(Date:yyyyMMdd)$(Rev:.r)
+
+trigger:
+  branches:
+    include:
+      - main
+
+variables:
+- group: global-variables
+- name: azureSubscription
+  value: AzureSubscription
+- name: acrName
+  value: aksacrharshad      
+- name: imageName
+  value: nginx-bluegreen
+- name: aksResourceGroup
+  value: aks-private-rg
+- name: aksClusterName
+  value: aks-private-cluster
+- name: helmChartPath
+  value: chart/
+- name: imageTag
+  value: $(Build.BuildId)
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+- stage: Build_and_Push
+  displayName: "Build & Push Docker Image to ACR"
+  jobs:
+  - job: Build
+    displayName: "Build Docker Image"
+    steps:
+    - checkout: self
+    - task: AzureCLI@2
+      displayName: "Login to Azure and ACR"
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          az acr login --name $(acrName)
+          docker build -t $(acrName).azurecr.io/$(imageName):$(imageTag) .
+          docker push $(acrName).azurecr.io/$(imageName):$(imageTag)
+          echo "##vso[task.setvariable variable=imageFullPath;]$(acrName).azurecr.io/$(imageName):$(imageTag)"
+
+- stage: Deploy_with_Helm_Argo
+  displayName: "Deploy to AKS using Helm + ArgoCD"
+  dependsOn: Build_and_Push
+  jobs:
+  - job: Deploy
+    steps:
+    - checkout: self
+    - task: AzureCLI@2
+      displayName: "Get AKS Credentials"
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          az aks get-credentials --resource-group $(aksResourceGroup) --name $(aksClusterName) --overwrite-existing
+
+    - task: HelmInstaller@1
+      displayName: "Install Helm"
+      inputs:
+        helmVersionToInstall: "3.14.0"
+
+    - bash: |
+        helm upgrade --install nginx-bluegreen $(helmChartPath) \
+          --set image.repository=$(acrName).azurecr.io/$(imageName) \
+          --set image.tag=$(imageTag) \
+          --set image.pullPolicy=Always
+      displayName: "Deploy NGINX via Helm"
+
+    - bash: |
+        echo "Syncing with ArgoCD..."
+        kubectl apply -f argocd/app-bluegreen.yaml
+      displayName: "Register App in ArgoCD"

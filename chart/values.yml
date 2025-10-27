@@ -1,0 +1,44 @@
+replicaCount: 1
+
+image:
+  repository: <your-acr-name>.azurecr.io/nginx-bluegreen
+  tag: latest
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 80
+
+activeVersion: blue
+
+serviceAccount:
+  create: true
+  name: nginx-sa
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+livenessProbe:
+  httpGet:
+    path: /
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+env:
+  - name: ENVIRONMENT
+    value: "dev"
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

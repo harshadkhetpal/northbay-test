@@ -1,0 +1,96 @@
+name: $(BuildDefinitionName)_$(date:yyyyMMdd)$(rev:.r)
+
+trigger: none
+pr: none
+
+variables:
+- group: global-variables
+- name: azureSubscription
+  value: AzureSubscription
+- name: terraformVersion
+  value: 1.7.5
+- name: terraformPath
+  value: terraform
+- name: tfstatePath
+  value: infra.tfstate
+- name: environment
+  value: production
+- name: location
+  value: eastus
+
+pool:
+  name: SelfHosted-Private
+  demands: azurecli
+
+stages:
+- stage: terraform_deployment
+  displayName: "Terraform Infrastructure Deployment"
+  jobs:
+  - job: terraform_apply
+    displayName: "Provision AKS, ACR & KeyVault"
+    continueOnError: false
+    steps:
+    - checkout: self
+
+    - task: AzureCLI@2
+      displayName: "Get Latest AKS Version"
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        addSpnToEnvironment: true
+        inlineScript: |
+          version=$(az aks get-versions --location $(location) \
+            --query "orchestrators[?isPreview==false].orchestratorVersion | sort(@) | [-1]" -o tsv)
+          echo "Latest AKS version: $version"
+          echo "##vso[task.setvariable variable=kubernetesVersion;]$version"
+
+    - task: TerraformInstaller@0
+      displayName: "Install Terraform"
+      inputs:
+        terraformVersion: $(terraformVersion)
+
+    - task: TerraformTaskV2@2
+      displayName: "Terraform Init"
+      inputs:
+        provider: "azurerm"
+        command: "init"
+        backendServiceArm: $(azureSubscription)
+        backendAzureRmResourceGroupName: $(terraformBackendResourceGroupName)
+        backendAzureRmStorageAccountName: $(terraformBackendStorageAccountName)
+        backendAzureRmContainerName: $(terraformBackendContainerName)
+        backendAzureRmKey: $(tfstatePath)
+        workingDirectory: "$(System.DefaultWorkingDirectory)/$(terraformPath)/"
+
+    - task: TerraformTaskV2@2
+      displayName: "Terraform Validate"
+      inputs:
+        provider: "azurerm"
+        command: "validate"
+        workingDirectory: "$(System.DefaultWorkingDirectory)/$(terraformPath)/"
+
+    - task: TerraformTaskV2@2
+      displayName: "Terraform Plan"
+      inputs:
+        provider: "azurerm"
+        command: "plan"
+        environmentServiceNameAzureRM: $(azureSubscription)
+        workingDirectory: "$(System.DefaultWorkingDirectory)/$(terraformPath)/"
+        commandOptions: >
+          -input=false
+          -var="location=$(location)"
+          -var="kubernetes_version=$(kubernetesVersion)"
+          -var-file="$(System.DefaultWorkingDirectory)/tfvars/$(environment)/$(environment).tfvars"
+
+    - task: TerraformTaskV2@2
+      displayName: "Terraform Apply"
+      inputs:
+        provider: "azurerm"
+        command: "apply"
+        environmentServiceNameAzureRM: $(azureSubscription)
+        workingDirectory: "$(System.DefaultWorkingDirectory)/$(terraformPath)/"
+        commandOptions: >
+          -input=false -auto-approve
+          -var="location=$(location)"
+          -var="kubernetes_version=$(kubernetesVersion)"
+          -var-file="$(System.DefaultWorkingDirectory)/tfvars/$(environment)/$(environment).tfvars"
