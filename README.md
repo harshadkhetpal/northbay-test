@@ -73,30 +73,49 @@ All communication is private and isolated within Azure using Private Link and VN
 
 ## Folder Structure
 
-```
 northbay-test/
 │
-├── argocd/                  # ArgoCD GitOps configurations
-├── chart/                   # Helm chart for Kubernetes app deployment
-├── key-vault/               # Key Vault seeding scripts
-├── modules/                 # Terraform modules
-│   ├── aks/
-│   ├── container_registry/
-│   ├── key_vault/
-│   ├── log_analytics/
-│   ├── node_pool/
-│   ├── private_dns_zone/
-│   ├── private_endpoint/
-│   └── virtual_network/
-├── pipelines/               # Azure DevOps YAML pipelines
-├── tfvars/                  # Environment-specific variable files
-├── main.tf                  # Root Terraform configuration
-├── variables.tf             # Variable definitions
-├── outputs.tf               # Terraform output values
-└── README.md
-```
+├── argocd/                       # ArgoCD GitOps configurations
+│   ├── app-bluegreen.yaml        # ArgoCD Application definition for GitOps
+│   ├── argo-install.yaml         # ArgoCD installation manifest
+│   └── namespace.yaml            # ArgoCD namespace configuration
+│
+├── chart/                        # Helm chart for Kubernetes app deployment
+│   ├── templates/                # Kubernetes manifests (Helm templates)
+│   │   ├── deployment-blue.yaml
+│   │   ├── deployment-green.yaml
+│   │   ├── hpa.yaml
+│   │   ├── ingress.yaml
+│   │   ├── service.yaml
+│   │   └── serviceaccount.yaml
+│   ├── chart.yaml                # Helm chart metadata
+│   └── values.yaml               # Default configuration values for Helm chart
+│
+├── key-vault/                    # Key Vault seeding and backend setup
+│   └── secrets.sh                # Script to create and populate Key Vault secrets
+│
+├── pipelines/                    # Azure DevOps YAML pipelines
+│   ├── aks-infra.yml             # Terraform infrastructure provisioning pipeline
+│   └── app-deploy.yml            # Application build and deployment pipeline
+│
+├── terraform/                    # Terraform root configuration and modules
+│   ├── main.tf                   # Root Terraform configuration (AKS, ACR, Key Vault)
+│   ├── variables.tf              # Variable definitions
+│   ├── outputs.tf                # Terraform outputs
+│   ├── tfvars/                   # Environment-specific variables
+│   │   └── stage.tfvars
+│   └── modules/                  # Modular Terraform structure
+│       ├── aks/
+│       ├── container_registry/
+│       ├── key_vault/
+│       ├── log_analytics/
+│       ├── node_pool/
+│       ├── private_dns_zone/
+│       ├── private_endpoint/
+│       └── virtual_network/
+│
+└── README.md                     # Documentation and architectural overview
 
----
 
 ## How It Works
 
