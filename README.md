@@ -117,6 +117,7 @@ northbay-test/
 └── README.md                  
 
 ```
+```
 ## How It Works
 
 ### Step 1: Backend Initialization
