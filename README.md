@@ -72,7 +72,6 @@ All communication is private and isolated within Azure using Private Link and VN
 ---
 
 ## Folder Structure
-
 northbay-test/
 │
 ├── argocd/                       # ArgoCD GitOps configurations
@@ -115,7 +114,6 @@ northbay-test/
 │       └── virtual_network/
 │
 └── README.md                     # Documentation and architectural overview
-
 
 ## How It Works
 
