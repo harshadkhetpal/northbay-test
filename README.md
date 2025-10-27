@@ -1,7 +1,3 @@
-Absolutely 👍 — here’s your clean, **icon-free and professional** version of the `README.md` file for your repository **northbay-test**.
-It’s formatted for a polished submission or corporate review.
-
----
 
 # NorthBay Secure AKS Infrastructure Deployment (Terraform + Azure DevOps)
 
