@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: <your-acr-name>.azurecr.io/nginx-bluegreen
+  repository: git@github.com:harshadkhetpal/northbay-test.git
   tag: latest
   pullPolicy: Always
 
