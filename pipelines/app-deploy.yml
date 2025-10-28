@@ -10,70 +10,96 @@ variables:
 - name: azureSubscription
   value: AzureSubscription
 - name: acrName
-  value: northbay     
+  value: northbay
 - name: imageName
   value: nginx-bluegreen
+- name: imageTag
+  value: $(Build.BuildId)
+- name: helmChartPath
+  value: chart/
 - name: aksResourceGroup
   value: aks-private-rg
 - name: aksClusterName
   value: aks-private-cluster
-- name: helmChartPath
-  value: chart/
-- name: imageTag
-  value: $(Build.BuildId)
 
 pool:
   vmImage: ubuntu-latest
 
 stages:
-- stage: Build_and_Push
-  displayName: "Build & Push Docker Image to ACR"
+- stage: Setup_ArgoCD
+  displayName: Install Argo CD into AKS
   jobs:
-  - job: Build
-    displayName: "Build Docker Image"
+  - job: Install_ArgoCD
     steps:
-    - checkout: self
+    - checkout: none
     - task: AzureCLI@2
-      displayName: "Login to Azure and ACR"
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
         scriptLocation: inlineScript
         inlineScript: |
+          set -e
+          az aks get-credentials --resource-group $(aksResourceGroup) --name $(aksClusterName) --overwrite-existing
+          if kubectl get ns argocd >/dev/null 2>&1; then
+            echo "Argo CD already installed."
+          else
+            kubectl create namespace argocd
+            kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+            kubectl wait --for=condition=Ready pods -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s || true
+          fi
+
+- stage: Build_and_Push
+  displayName: Build and Push Docker Image
+  dependsOn: Setup_ArgoCD
+  jobs:
+  - job: Build
+    steps:
+    - checkout: self
+      persistCredentials: true
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -e
           az acr login --name $(acrName)
           docker build -t $(acrName).azurecr.io/$(imageName):$(imageTag) .
           docker push $(acrName).azurecr.io/$(imageName):$(imageTag)
           echo "##vso[task.setvariable variable=imageFullPath;]$(acrName).azurecr.io/$(imageName):$(imageTag)"
 
-- stage: Deploy_with_Helm_Argo
-  displayName: "Deploy to AKS using Helm + ArgoCD"
+- stage: Update_Git_and_Trigger_Argo
+  displayName: Update values.yaml and Trigger ArgoCD
   dependsOn: Build_and_Push
   jobs:
-  - job: Deploy
+  - job: GitUpdate
     steps:
     - checkout: self
-    - task: AzureCLI@2
-      displayName: "Get AKS Credentials"
-      inputs:
-        azureSubscription: $(azureSubscription)
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          az aks get-credentials --resource-group $(aksResourceGroup) --name $(aksClusterName) --overwrite-existing
-
-    - task: HelmInstaller@1
-      displayName: "Install Helm"
-      inputs:
-        helmVersionToInstall: "3.14.0"
-
+      persistCredentials: true
     - bash: |
-        helm upgrade --install nginx-bluegreen $(helmChartPath) \
-          --set image.repository=$(acrName).azurecr.io/$(imageName) \
-          --set image.tag=$(imageTag) \
-          --set image.pullPolicy=Always
-      displayName: "Deploy NGINX via Helm"
+        set -e
+        sed -i "s|tag:.*|tag: $(imageTag)|" $(helmChartPath)/values.yaml
+        git config user.email "buildagent@azuredevops.local"
+        git config user.name "Azure DevOps Pipeline"
+        git add $(helmChartPath)/values.yaml
+        git commit -m "Auto: update image tag to $(imageTag)" || echo "No changes to commit."
+        git push origin main
 
+- stage: Flip_Service
+  displayName: Switch traffic to new environment
+  dependsOn: Update_Git_and_Trigger_Argo
+  jobs:
+  - job: Flip
+    steps:
+    - checkout: self
+      persistCredentials: true
     - bash: |
-        echo "Syncing with ArgoCD..."
-        kubectl apply -f argocd/app-bluegreen.yaml
-      displayName: "Register App in ArgoCD"
+        set -e
+        CURRENT=$(grep activeVersion: $(helmChartPath)/values.yaml | awk '{print $2}')
+        if [ "$CURRENT" = "blue" ]; then NEXT="green"; else NEXT="blue"; fi
+        sed -i "s|activeVersion:.*|activeVersion: $NEXT|" $(helmChartPath)/values.yaml
+        git config user.email "buildagent@azuredevops.local"
+        git config user.name "Azure DevOps Pipeline"
+        git add $(helmChartPath)/values.yaml
+        git commit -m "Switch traffic to $NEXT after successful deployment" || echo "No changes to commit."
+        git push origin main
