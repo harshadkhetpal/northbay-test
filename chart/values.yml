@@ -42,3 +42,8 @@ env:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+ingress:
+  enabled: true
+  className: nginx
+  host: northbay.example.com
