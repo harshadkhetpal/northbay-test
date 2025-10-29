@@ -27,12 +27,15 @@ pool:
 
 stages:
 - stage: Setup_ArgoCD
-  displayName: Install Argo CD into AKS
+  displayName: Install and Configure Argo CD
   jobs:
   - job: Install_ArgoCD
+    displayName: Install ArgoCD into AKS
     steps:
-    - checkout: none
+    - checkout: self
+      persistCredentials: true
     - task: AzureCLI@2
+      displayName: Install / Configure Argo CD
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
@@ -40,13 +43,23 @@ stages:
         inlineScript: |
           set -e
           az aks get-credentials --resource-group $(aksResourceGroup) --name $(aksClusterName) --overwrite-existing
+
           if kubectl get ns argocd >/dev/null 2>&1; then
-            echo "Argo CD already installed."
+            echo "Argo CD namespace already exists."
           else
             kubectl create namespace argocd
             kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
             kubectl wait --for=condition=Ready pods -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s || true
           fi
+
+          if [ -f "argocd/argocd-cm.yaml" ]; then
+            kubectl apply -f argocd/argocd-cm.yaml
+          fi
+          if [ -f "argocd/argocd-rbac-cm.yaml" ]; then
+            kubectl apply -f argocd/argocd-rbac-cm.yaml
+          fi
+
+          kubectl rollout status deployment/argocd-server -n argocd || true
 
 - stage: Build_and_Push
   displayName: Build and Push Docker Image
@@ -57,6 +70,7 @@ stages:
     - checkout: self
       persistCredentials: true
     - task: AzureCLI@2
+      displayName: Build and Push to ACR
       inputs:
         azureSubscription: $(azureSubscription)
         scriptType: bash
@@ -69,7 +83,7 @@ stages:
           echo "##vso[task.setvariable variable=imageFullPath;]$(acrName).azurecr.io/$(imageName):$(imageTag)"
 
 - stage: Update_Git_and_Trigger_Argo
-  displayName: Update values.yaml and Trigger ArgoCD
+  displayName: Update Helm values.yaml and Trigger ArgoCD Sync
   dependsOn: Build_and_Push
   jobs:
   - job: GitUpdate
@@ -86,7 +100,7 @@ stages:
         git push origin main
 
 - stage: Flip_Service
-  displayName: Switch traffic to new environment
+  displayName: Switch Traffic Between Blue and Green
   dependsOn: Update_Git_and_Trigger_Argo
   jobs:
   - job: Flip
@@ -96,7 +110,11 @@ stages:
     - bash: |
         set -e
         CURRENT=$(grep activeVersion: $(helmChartPath)/values.yaml | awk '{print $2}')
-        if [ "$CURRENT" = "blue" ]; then NEXT="green"; else NEXT="blue"; fi
+        if [ "$CURRENT" = "blue" ]; then
+          NEXT="green"
+        else
+          NEXT="blue"
+        fi
         sed -i "s|activeVersion:.*|activeVersion: $NEXT|" $(helmChartPath)/values.yaml
         git config user.email "buildagent@azuredevops.local"
         git config user.name "Azure DevOps Pipeline"
