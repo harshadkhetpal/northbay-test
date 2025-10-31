@@ -33,3 +33,6 @@ output "node_resource_group" {
   value       = azurerm_kubernetes_cluster.aks_cluster.node_resource_group
   description = "Specifies the resource id of the auto-generated Resource Group which contains the resources for this Managed Kubernetes Cluster."
 }
+output "workload_identity_principal_id" {
+  value = azurerm_user_assigned_identity.aks_identity.principal_id
+}
