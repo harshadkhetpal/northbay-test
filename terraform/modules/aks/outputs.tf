@@ -36,3 +36,18 @@ output "node_resource_group" {
 output "workload_identity_principal_id" {
   value = azurerm_user_assigned_identity.aks_identity.principal_id
 }
+
+output "workload_identity_client_id" {
+  value       = azurerm_user_assigned_identity.aks_identity.client_id
+  description = "Client ID of the AKS workload identity (managed identity)"
+}
+
+output "workload_identity_resource_id" {
+  value       = azurerm_user_assigned_identity.aks_identity.id
+  description = "Resource ID of the AKS workload identity (managed identity) - used for federated credentials"
+}
+
+output "oidc_issuer_url" {
+  value       = azurerm_kubernetes_cluster.aks_cluster.oidc_issuer_url
+  description = "The OIDC issuer URL for the AKS cluster (used for Workload Identity federated credentials)"
+}

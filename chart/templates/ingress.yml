@@ -4,12 +4,13 @@ kind: Ingress
 metadata:
   name: {{ include "nginx-bluegreen.fullname" . }}-ingress
   labels:
+    {{- include "nginx-bluegreen.labels" . | nindent 4 }}
     app: {{ include "nginx-bluegreen.name" . }}
   annotations:
-    kubernetes.io/ingress.class: {{ .Values.ingress.className | default "nginx" | quote }}
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
 spec:
+  ingressClassName: {{ .Values.ingress.className | default "nginx" | quote }}
   rules:
     - host: {{ .Values.ingress.host | quote }}
       http:
@@ -20,5 +21,5 @@ spec:
               service:
                 name: {{ include "nginx-bluegreen.serviceName" . }}
                 port:
-                  number: 80
+                  number: {{ .Values.service.port }}
 {{- end }}

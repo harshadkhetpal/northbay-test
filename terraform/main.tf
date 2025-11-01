@@ -141,8 +141,12 @@ module "key_vault" {
   enable_rbac_authorization       = var.key_vault_enable_rbac_authorization
   purge_protection_enabled        = var.key_vault_purge_protection_enabled
   soft_delete_retention_days      = var.key_vault_soft_delete_retention_days
-  bypass                          = var.key_vault_bypass
-  default_action                  = var.key_vault_default_action
+  bypass                          = "None"  # No bypass - all access must go through private endpoint
+  default_action                  = var.key_vault_default_action  # Should be "Deny" (set in variables.tf)
+  virtual_network_subnet_ids      = [
+    module.aks_network.subnet_ids[var.default_node_pool_subnet_name],
+    module.aks_network.subnet_ids[var.additional_node_pool_subnet_name]
+  ]  # Allow access only from AKS subnets
   log_analytics_workspace_id      = module.log_analytics_workspace.id
 }
 
@@ -208,6 +212,29 @@ resource "azurerm_role_assignment" "acr_pull" {
   scope                            = module.container_registry.id
   principal_id                     = module.aks_cluster.kubelet_identity_object_id
   skip_service_principal_aad_check = true
+}
+
+# Grant Key Vault Secrets User role to AKS workload identity for pod access to secrets
+resource "azurerm_role_assignment" "key_vault_secrets_user" {
+  role_definition_name             = "Key Vault Secrets User"
+  scope                            = module.key_vault.id
+  principal_id                     = module.aks_cluster.workload_identity_principal_id
+  skip_service_principal_aad_check = true
+  description                      = "Allows AKS workload identity to read secrets from Key Vault"
+}
+
+# Create federated credential for Workload Identity
+# Links Kubernetes ServiceAccount to Azure Managed Identity via OIDC
+# This allows pods using the ServiceAccount to authenticate to Azure resources without secrets
+resource "azurerm_federated_identity_credential" "nginx_workload_identity" {
+  name                = "nginx-sa-federated-credential"
+  resource_group_name = azurerm_resource_group.rg.name
+  audience            = ["api://AzureADTokenExchange"]
+  issuer              = module.aks_cluster.oidc_issuer_url
+  parent_id           = module.aks_cluster.workload_identity_resource_id
+  subject             = "system:serviceaccount:default:nginx-sa"
+  
+  depends_on = [module.aks_cluster]
 }
 
 module "acr_private_dns_zone" {

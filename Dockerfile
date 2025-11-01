@@ -1,19 +1,38 @@
-# -----------------------------------------------------------
-# Stage: Build lightweight Nginx container for AKS deployment
-# -----------------------------------------------------------
+# Multi-stage build for Dubai Real Estate ML Service
+FROM python:3.11-slim as base
 
-# Use official lightweight Nginx base image
-FROM nginx:1.25-alpine
+WORKDIR /app
 
-# Set working directory
-WORKDIR /usr/share/nginx/html
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy static application files (if any)
-# For now, we’ll use a simple index.html placeholder
-COPY ./chart/app/ /usr/share/nginx/html/
+# Copy requirements and install Python dependencies
+COPY chart/app/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Expose default HTTP port
-EXPOSE 80
+# Copy application code
+COPY chart/app/ ./app/
 
-# Run Nginx in foreground (required for container runtime)
-CMD ["nginx", "-g", "daemon off;"]
+# Create models directory
+RUN mkdir -p /app/models
+
+# Generate and save a trained model (for demo purposes)
+# In production, download from Azure Blob Storage or mount from Key Vault
+RUN python -c "import sys; sys.path.insert(0, '/app'); from app.train_model import train_model; train_model()"
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s \
+  CMD curl -f http://localhost:8000/health || exit 1
+
+# Expose FastAPI port
+EXPOSE 8000
+
+# Run as non-root user
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+# Run FastAPI server
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

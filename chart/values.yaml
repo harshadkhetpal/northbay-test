@@ -1,43 +1,52 @@
 replicaCount: 1
 
 image:
-  repository: nginx
+  repository: northbay.azurecr.io/dubai-realestate-ml
   tag: 0
   pullPolicy: Always
 
 service:
   type: ClusterIP
-  port: 80
+  port: 8000
 
 activeVersion: blue
 
 serviceAccount:
   create: true
   name: nginx-sa
+  # Note: workloadIdentityClientId comes from values-terraform.yaml via terraformConfig
 
 resources:
   limits:
-    cpu: 200m
-    memory: 256Mi
+    cpu: 2000m
+    memory: 2Gi
   requests:
-    cpu: 100m
-    memory: 128Mi
+    cpu: 1000m
+    memory: 1Gi
 
 livenessProbe:
   httpGet:
-    path: /
-  initialDelaySeconds: 10
-  periodSeconds: 10
+    path: /health
+    port: 8000
+  initialDelaySeconds: 60
+  periodSeconds: 30
 
 readinessProbe:
   httpGet:
-    path: /
-  initialDelaySeconds: 5
-  periodSeconds: 5
+    path: /health
+    port: 8000
+  initialDelaySeconds: 60
+  periodSeconds: 10
 
 env:
-  - name: ENVIRONMENT
-    value: "dev"
+  - name: MODEL_PATH
+    value: "/app/models/dubai_realestate_model.pkl"
+  - name: MODEL_VERSION
+    value: "v1.0.0"
+  - name: LOG_LEVEL
+    value: "INFO"
+  - name: APP_VERSION
+    value: "1.0.0"
 
 nodeSelector: {}
 tolerations: []
@@ -46,4 +55,29 @@ affinity: {}
 ingress:
   enabled: true
   className: nginx
-  host: northbay.example.com
+  host: dubai-realestate.example.com
+
+# Azure Key Vault integration via Secrets Store CSI Driver
+# Note: Key Vault name and tenantId are automatically populated from Terraform via values-terraform.yaml
+keyVault:
+  enabled: false
+  # name and tenantId are automatically populated from terraformConfig if available
+  # If terraformConfig is disabled, uncomment and set these manually:
+  # name: ""
+  # tenantId: ""
+  # Secrets to mount from Key Vault
+  # Each entry creates a volume mount and optional Kubernetes secret
+  secrets:
+    - secretName: "app-secrets"  # Kubernetes secret name
+      objects:  # List of secrets/keys/certificates to mount
+        - objectName: "example-secret"  # Secret name in Key Vault
+          objectType: "secret"  # secret, key, or cert
+          objectVersion: ""  # Optional: specific version, leave empty for latest
+
+# Autoscaling configuration for HorizontalPodAutoscaler
+autoscaling:
+  enabled: false  # Set to true to enable HPA
+  minReplicas: 1
+  maxReplicas: 10
+  targetDeployment: "nginx-blue"  # Deployment to scale: "nginx-blue" or "nginx-green"
+  cpuAverageUtilization: 80  # Target CPU utilization percentage

@@ -489,7 +489,7 @@ variable "acr_sku" {
 variable "acr_admin_enabled" {
   description = "Specifies whether admin is enabled for the container registry"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "acr_georeplication_locations" {
@@ -573,7 +573,7 @@ variable "key_vault_soft_delete_retention_days" {
 variable "key_vault_bypass" { 
   description = "(Required) Specifies which traffic can bypass the network rules. Possible values are AzureServices and None."
   type        = string
-  default     = "AzureServices" 
+  default     = "None"  # Changed to None for better security - all access via private endpoint 
 
   validation {
     condition = contains(["AzureServices", "None" ], var.key_vault_bypass)
@@ -584,7 +584,7 @@ variable "key_vault_bypass" {
 variable "key_vault_default_action" { 
   description = "(Required) The Default Action to use when no rules match from ip_rules / virtual_network_subnet_ids. Possible values are Allow and Deny."
   type        = string
-  default     = "Allow" 
+  default     = "Deny"  # Changed to Deny for security - only allow via private endpoint 
 
   validation {
     condition = contains(["Allow", "Deny" ], var.key_vault_default_action)

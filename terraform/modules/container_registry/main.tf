@@ -14,6 +14,7 @@ resource "azurerm_container_registry" "acr" {
   location                 = var.location
   sku                      = var.sku  
   admin_enabled            = var.admin_enabled
+  public_network_access_enabled = false  # Disable public access - only private endpoint
   tags                     = var.tags
 
   identity {
@@ -21,6 +22,11 @@ resource "azurerm_container_registry" "acr" {
     identity_ids = [
       azurerm_user_assigned_identity.acr_identity.id
     ]
+  }
+  
+  network_rule_set {
+    default_action = "Deny"
+    # Only allow access via private endpoint
   }
 
   dynamic "georeplications" {

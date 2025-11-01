@@ -4,7 +4,7 @@ trigger: none
 pr: none
 
 variables:
-- group: global-variables
+- group: global-variables  # Optional - will use if linked, otherwise falls back to defaults
 - name: azureSubscription
   value: AzureSubscription
 - name: terraformVersion
@@ -17,14 +17,143 @@ variables:
   value: production
 - name: location
   value: eastus
+# Bootstrap defaults (used if variable group not linked yet)
+- name: TERRAFORM_BACKEND_RG
+  value: northbay-tfstate-rg
+- name: TERRAFORM_BACKEND_SA
+  value: northbaytfstate
+- name: TERRAFORM_BACKEND_CONTAINER
+  value: tfstate
+- name: TERRAFORM_BACKEND_KV
+  value: kv-northbay
 
 pool:
-  name: SelfHosted-Private
-  demands: azurecli
+  vmImage: ubuntu-latest
 
 stages:
+# =============================================================================
+# Stage 1: Bootstrap Terraform Backend (AUTOMATIC)
+# =============================================================================
+# This stage automatically creates the backend infrastructure needed for Terraform:
+# - Resource Group, Storage Account, Container, Key Vault
+# - Seeds secrets in Key Vault
+# - Idempotent: skips if resources already exist
+# =============================================================================
+- stage: bootstrap_backend
+  displayName: "Bootstrap Terraform Backend Infrastructure"
+  jobs:
+  - job: bootstrap
+    displayName: "Create Backend Resources"
+    continueOnError: false
+    steps:
+    - checkout: self
+    
+    - task: AzureCLI@2
+      displayName: "Bootstrap Backend Infrastructure"
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -e
+          
+          # Use values from variable group if available, otherwise use defaults
+          # This handles both first run (no variable group) and subsequent runs
+          RG_NAME="${terraformBackendResourceGroupName:-$(TERRAFORM_BACKEND_RG)}"
+          SA_NAME="${terraformBackendStorageAccountName:-$(TERRAFORM_BACKEND_SA)}"
+          CONTAINER_NAME="${terraformBackendContainerName:-$(TERRAFORM_BACKEND_CONTAINER)}"
+          KV_NAME="${TERRAFORM_BACKEND_KV}"
+          LOCATION="${location}"
+          
+          echo "=========================================="
+          echo "Bootstrap Configuration:"
+          echo "  Resource Group:    $RG_NAME"
+          echo "  Storage Account:   $SA_NAME"
+          echo "  Container:         $CONTAINER_NAME"
+          echo "  Key Vault:         $KV_NAME"
+          echo "  Location:          $LOCATION"
+          echo "=========================================="
+          
+          # Quick check if resources already exist
+          echo "Checking if backend resources already exist..."
+          
+          RESOURCES_EXIST=false
+          if az group show --name "$RG_NAME" >/dev/null 2>&1 && \
+             az storage account show --name "$SA_NAME" --resource-group "$RG_NAME" >/dev/null 2>&1 && \
+             az keyvault show --name "$KV_NAME" --resource-group "$RG_NAME" >/dev/null 2>&1; then
+            echo "Backend resources already exist. Verifying setup..."
+            
+            # Verify all secrets exist in Key Vault
+            REQUIRED_SECRETS=(
+              "terraformBackendResourceGroupName"
+              "terraformBackendStorageAccountName"
+              "terraformBackendContainerName"
+              "terraformBackendStorageAccountKey"
+            )
+            
+            ALL_SECRETS_EXIST=true
+            for secret in "${REQUIRED_SECRETS[@]}"; do
+              if ! az keyvault secret show --name "$secret" --vault-name "$KV_NAME" >/dev/null 2>&1; then
+                echo "Missing secret: $secret"
+                ALL_SECRETS_EXIST=false
+              fi
+            done
+            
+            if [ "$ALL_SECRETS_EXIST" = true ]; then
+              echo "All backend resources and secrets exist. Bootstrap complete."
+              RESOURCES_EXIST=true
+            else
+              echo "Resources exist but secrets are missing. Running bootstrap to create secrets..."
+            fi
+          fi
+          
+          if [ "$RESOURCES_EXIST" = false ]; then
+            echo "Running bootstrap script to create/update backend resources..."
+            chmod +x key-vault/secrets.sh
+            
+            # Export variables for the script
+            export RG_NAME SA_NAME CONTAINER_NAME KV_NAME LOCATION
+            ./key-vault/secrets.sh
+            
+            echo "Bootstrap completed successfully!"
+          fi
+          
+          # Export backend values for Terraform stage (if not already in variable group)
+          # These will be available as pipeline variables in subsequent stages
+          echo "##vso[task.setvariable variable=terraformBackendResourceGroupName;]$RG_NAME"
+          echo "##vso[task.setvariable variable=terraformBackendStorageAccountName;]$SA_NAME"
+          echo "##vso[task.setvariable variable=terraformBackendContainerName;]$CONTAINER_NAME"
+          
+          # Get storage account key and store as secret variable
+          echo "Retrieving storage account key..."
+          SA_KEY=$(az storage account keys list \
+            --resource-group "$RG_NAME" \
+            --account-name "$SA_NAME" \
+            --query '[0].value' -o tsv)
+          
+          # Store as secret variable (will be available in next stage if variable group not linked)
+          echo "##vso[task.setvariable variable=terraformBackendStorageAccountKey;isSecret=true]$SA_KEY"
+          
+          echo ""
+          echo "=========================================="
+          echo "Bootstrap Summary:"
+          echo "  ✓ Resource Group:    $RG_NAME"
+          echo "  ✓ Storage Account:   $SA_NAME"
+          echo "  ✓ Container:         $CONTAINER_NAME"
+          echo "  ✓ Key Vault:         $KV_NAME"
+          echo "  ✓ Secrets:           All created"
+          echo "=========================================="
+          echo ""
+          echo "Note: After first run, link Key Vault to Azure DevOps Variable Group"
+          echo "      (Pipelines → Library → Variable Groups → global-variables)"
+          echo "      See: KEY_VAULT_PIPELINE_SETUP.md"
+
+# =============================================================================
+# Stage 2: Terraform Infrastructure Deployment (AUTOMATIC - after bootstrap)
+# =============================================================================
 - stage: terraform_deployment
   displayName: "Terraform Infrastructure Deployment"
+  dependsOn: bootstrap_backend  # ← Runs after bootstrap completes
   jobs:
   - job: terraform_apply
     displayName: "Provision AKS, ACR & KeyVault"
@@ -56,6 +185,9 @@ stages:
         provider: "azurerm"
         command: "init"
         backendServiceArm: $(azureSubscription)
+        # These variables come from:
+        # 1. Variable group (if linked to Key Vault) - preferred
+        # 2. Pipeline variables set by bootstrap stage - fallback
         backendAzureRmResourceGroupName: $(terraformBackendResourceGroupName)
         backendAzureRmStorageAccountName: $(terraformBackendStorageAccountName)
         backendAzureRmContainerName: $(terraformBackendContainerName)

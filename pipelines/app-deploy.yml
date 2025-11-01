@@ -12,7 +12,7 @@ variables:
 - name: acrName
   value: northbay
 - name: imageName
-  value: nginx-bluegreen
+  value: dubai-realestate-ml
 - name: imageTag
   value: $(Build.BuildId)
 - name: helmChartPath
@@ -23,7 +23,8 @@ variables:
   value: aks-private-cluster
 
 pool:
-  vmImage: ubuntu-latest
+  name: SelfHosted-Private  
+  demands: azurecli
 
 stages:
 - stage: Setup_ArgoCD
@@ -61,9 +62,60 @@ stages:
 
           kubectl rollout status deployment/argocd-server -n argocd || true
 
+- stage: Prepare_Terraform_Values
+  displayName: Prepare Helm Values from Terraform Outputs
+  dependsOn: Setup_ArgoCD
+  jobs:
+  - job: Prepare_Values
+    displayName: Generate Helm Values from Terraform
+    steps:
+    - checkout: self
+      persistCredentials: true
+    - task: AzureCLI@2
+      displayName: Get Terraform Outputs and Generate Values
+      inputs:
+        azureSubscription: $(azureSubscription)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -e
+          # Navigate to terraform directory
+          cd terraform
+          
+          # Initialize Terraform (if not already done)
+          terraform init \
+            -backend-config="resource_group_name=$(terraformBackendResourceGroupName)" \
+            -backend-config="storage_account_name=$(terraformBackendStorageAccountName)" \
+            -backend-config="container_name=$(terraformBackendContainerName)" \
+            -backend-config="key=infra.tfstate" \
+            -backend-config="access_key=$(terraformBackendStorageAccountKey)" || true
+          
+          # Get Terraform outputs
+          TENANT_ID=$(terraform output -raw tenant_id)
+          KEY_VAULT_NAME=$(terraform output -raw key_vault_name)
+          WORKLOAD_IDENTITY_CLIENT_ID=$(terraform output -raw aks_workload_identity_client_id)
+          
+          # Generate values file
+          cat > ../chart/values-terraform.yaml <<EOF
+          terraformConfig:
+            enabled: true
+            tenantId: "$TENANT_ID"
+            keyVaultName: "$KEY_VAULT_NAME"
+            workloadIdentityClientId: "$WORKLOAD_IDENTITY_CLIENT_ID"
+          
+          keyVault:
+            enabled: true
+            name: "$KEY_VAULT_NAME"
+            tenantId: "$TENANT_ID"
+          EOF
+          
+          echo "Generated values-terraform.yaml with Terraform outputs"
+          echo "Tenant ID: $TENANT_ID"
+          echo "Key Vault Name: $KEY_VAULT_NAME"
+
 - stage: Build_and_Push
   displayName: Build and Push Docker Image
-  dependsOn: Setup_ArgoCD
+  dependsOn: Prepare_Terraform_Values
   jobs:
   - job: Build
     steps:
@@ -92,7 +144,17 @@ stages:
       persistCredentials: true
     - bash: |
         set -e
+        # Update image tag
         sed -i "s|tag:.*|tag: $(imageTag)|" $(helmChartPath)/values.yaml
+        
+        # Merge Terraform-generated values if they exist
+        if [ -f "$(helmChartPath)/values-terraform.yaml" ]; then
+          echo "Merging Terraform-generated values..."
+          # Use yq or a simple merge approach
+          # For now, we'll ensure values-terraform.yaml is also committed
+          git add $(helmChartPath)/values-terraform.yaml || true
+        fi
+        
         git config user.email "buildagent@azuredevops.local"
         git config user.name "Azure DevOps Pipeline"
         git add $(helmChartPath)/values.yaml

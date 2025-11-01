@@ -56,11 +56,12 @@ All communication is private and isolated within Azure using Private Link and VN
 
 ### CI/CD Pipeline (Azure DevOps)
 
-* Automated provisioning pipeline (`pipelines/infra-pipeline.yml`)
+* Automated provisioning pipeline (`pipelines/aks-infra.yml`)
 * Application build and deploy pipeline (`pipelines/app-deploy.yml`)
-* Secrets dynamically fetched from Azure Key Vault
+* Secrets dynamically fetched from Azure Key Vault via variable groups
 * AKS deployments managed using Helm and ArgoCD with a GitOps workflow
 * Supports Blue-Green deployment strategy with rollback capability
+* Dubai Real Estate ML service deployment (FastAPI-based)
 
 ### Security Highlights
 
@@ -73,8 +74,12 @@ All communication is private and isolated within Azure using Private Link and VN
 
 ### Step 1: Backend Initialization
 
-* The script `key-vault/create-backend-secrets.sh` creates or updates a Key Vault and seeds secrets for Terraform backend configuration.
-* Azure DevOps variable group links to the Key Vault to retrieve secrets securely during pipeline runs.
+* The enhanced script `key-vault/secrets.sh` creates the complete Terraform backend infrastructure:
+  * Resource Group, Storage Account, Storage Container
+  * Key Vault with all required secrets
+  * Idempotent - safe to run multiple times
+* Azure DevOps variable group (`global-variables`) links to Key Vault to retrieve secrets securely during pipeline runs.
+* See [`KEY_VAULT_PIPELINE_SETUP.md`](KEY_VAULT_PIPELINE_SETUP.md) for detailed integration steps.
 
 ### Step 2: Terraform Infrastructure Pipeline
 
@@ -92,37 +97,78 @@ All communication is private and isolated within Azure using Private Link and VN
 
 ## Deployment Steps
 
-### 1. Create Backend Secrets
+### Prerequisites
+
+* Azure CLI installed and authenticated (`az login`)
+* Azure DevOps organization and project
+* Appropriate Azure permissions (Contributor role or Key Vault access)
+* Azure DevOps permissions (Project Administrator or Variable Group access)
+
+### 1. Bootstrap Terraform Backend Infrastructure
+
+Run the enhanced bootstrap script to create all required resources:
 
 ```bash
-chmod +x key-vault/create-backend-secrets.sh
-./key-vault/create-backend-secrets.sh
+# Make script executable
+chmod +x key-vault/secrets.sh
+
+# Run with default values
+./key-vault/secrets.sh
+
+# Or with custom values
+RG_NAME=custom-rg SA_NAME=customsa KV_NAME=custom-kv ./key-vault/secrets.sh
+```
+
+This script automatically creates:
+* ✅ Resource Group (`northbay-tfstate-rg`)
+* ✅ Storage Account (`northbaytfstate`)
+* ✅ Storage Container (`tfstate`)
+* ✅ Key Vault (`kv-northbay`)
+* ✅ All required secrets in Key Vault
+
+**Verify the setup:**
+```bash
+./scripts/verify-keyvault-link.sh
 ```
 
 ### 2. Link Key Vault to Azure DevOps
 
-Navigate to Azure DevOps:
+📖 **Detailed instructions:** See [`KEY_VAULT_PIPELINE_SETUP.md`](KEY_VAULT_PIPELINE_SETUP.md)
 
-* Pipelines → Library → Variable Groups → New Group
-* Enable: “Link secrets from an Azure Key Vault as variables”
-* Select the Key Vault and link the following secrets:
-
-  * terraformBackendResourceGroupName
-  * terraformBackendStorageAccountName
-  * terraformBackendContainerName
-  * terraformBackendStorageAccountKey
+**Quick Steps:**
+1. Navigate to Azure DevOps → **Pipelines** → **Library**
+2. Create or edit variable group: **`global-variables`**
+3. Enable **"Link secrets from an Azure Key Vault as variables"**
+4. Select Key Vault: `kv-northbay` (or your Key Vault name)
+5. Link these secrets:
+   * `terraformBackendResourceGroupName`
+   * `terraformBackendStorageAccountName`
+   * `terraformBackendContainerName`
+   * `terraformBackendStorageAccountKey`
+6. Save the variable group
 
 ### 3. Run Infrastructure Pipeline
 
-Execute the pipeline:
+Execute the Terraform pipeline to provision infrastructure:
 
-* `pipelines/infra-pipeline.yml` provisions AKS, ACR, and Key Vault.
+* **Pipeline**: `pipelines/aks-infra.yml`
+* **What it does**:
+  * Provisions private AKS cluster
+  * Creates private ACR with Private Endpoint
+  * Creates Key Vault with Private Endpoint
+  * Sets up networking and security configurations
 
 ### 4. Run Application Deployment Pipeline
 
-Execute the pipeline:
+Execute the application pipeline to build and deploy:
 
-* `pipelines/app-deploy.yml` builds the Docker image and deploys it to AKS using Helm and ArgoCD.
+* **Pipeline**: `pipelines/app-deploy.yml`
+* **What it does**:
+  * Builds Docker image for Dubai Real Estate ML service
+  * Pushes to private ACR
+  * Generates Helm values from Terraform outputs
+  * Deploys to AKS using ArgoCD (GitOps)
+  * Implements Blue-Green deployment strategy
 
 ---
 
