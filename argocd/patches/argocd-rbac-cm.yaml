@@ -5,6 +5,44 @@ metadata:
   namespace: argocd
 data:
   policy.csv: |
-    p, role:devops, applications, sync, *, allow
+    # Policy: DevOps role - Full access to applications
+    p, role:devops, applications, create, *, allow
     p, role:devops, applications, get, *, allow
-    g, harshad, role:devops
+    p, role:devops, applications, update, *, allow
+    p, role:devops, applications, delete, *, allow
+    p, role:devops, applications, sync, *, allow
+    p, role:devops, applications, override, *, allow
+    p, role:devops, applications, action/*, *, allow
+    
+    # Policy: DevOps role - Repository access
+    p, role:devops, repositories, get, *, allow
+    p, role:devops, repositories, create, *, allow
+    p, role:devops, repositories, update, *, allow
+    
+    # Policy: DevOps role - Cluster access
+    p, role:devops, clusters, get, *, allow
+    
+    # Policy: Read-only role - View only access
+    p, role:readonly, applications, get, *, allow
+    p, role:readonly, repositories, get, *, allow
+    p, role:readonly, clusters, get, *, allow
+    
+    # Policy: Developer role - Limited sync access
+    p, role:developer, applications, get, dubai-ml-project/*, allow
+    p, role:developer, applications, sync, dubai-ml-project/*, allow
+    
+    # Policy: Project admin - Full access to specific project
+    p, role:project-admin, applications, *, dubai-ml-project/*, allow
+    
+    # Groups (use Azure AD groups or Kubernetes groups)
+    # Example: g, devops-team, role:devops
+    # Example: g, developers, role:developer
+    # Example: g, harshad, role:devops
+    
+    # Default policy: deny all
+    p, role:default, applications, *, *, deny
+    g, default, role:default
+    
+    # Service account for ArgoCD applications
+    p, role:app, applications, get, *, allow
+    p, role:app, applications, sync, *, allow

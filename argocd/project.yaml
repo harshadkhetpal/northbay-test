@@ -1,0 +1,56 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: dubai-ml-project
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: PruneLast=true
+spec:
+  description: Dubai Real Estate ML Service Project
+  sourceRepos:
+    - 'git@github.com:harshadkhetpal/northbay-test.git'
+    - 'https://github.com/harshadkhetpal/northbay-test.git'
+    - '*'  # Allow any repo (can be restricted for production)
+  destinations:
+    - namespace: default
+      server: https://kubernetes.default.svc
+    - namespace: '*'
+      server: '*'  # Allow any namespace and cluster (can be restricted)
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'
+  roles:
+    - name: admin
+      description: Admin access to Dubai ML project
+      policies:
+        - p, proj:dubai-ml-project:admin, applications, *, dubai-ml-project/*, allow
+        - p, proj:dubai-ml-project:admin, repositories, *, *, allow
+        - p, proj:dubai-ml-project:admin, clusters, get, *, allow
+      groups:
+        - argocd-admins
+    - name: devops
+      description: DevOps team access
+      policies:
+        - p, proj:dubai-ml-project:devops, applications, sync, dubai-ml-project/*, allow
+        - p, proj:dubai-ml-project:devops, applications, get, dubai-ml-project/*, allow
+        - p, proj:dubai-ml-project:devops, applications, override, dubai-ml-project/*, allow
+      groups:
+        - devops-team
+  syncWindows:
+    - kind: allow
+      schedule: '* * * * *'  # Allow syncs at any time (can be restricted)
+      duration: 24h
+      applications:
+        - '*'
+      manualSync: true
+    # Example of maintenance window (uncomment and adjust if needed)
+    # - kind: deny
+    #   schedule: '0 2 * * *'  # Deny syncs at 2 AM UTC
+    #   duration: 1h
+    #   applications:
+    #     - '*'
+    #   manualSync: false
+

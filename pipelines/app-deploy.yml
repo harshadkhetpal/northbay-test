@@ -53,11 +53,27 @@ stages:
             kubectl wait --for=condition=Ready pods -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s || true
           fi
 
-          if [ -f "argocd/argocd-cm.yaml" ]; then
-            kubectl apply -f argocd/argocd-cm.yaml
+          # Apply ArgoCD configuration patches
+          if [ -f "argocd/patches/argocd-cm.yaml" ]; then
+            kubectl apply -f argocd/patches/argocd-cm.yaml
           fi
-          if [ -f "argocd/argocd-rbac-cm.yaml" ]; then
-            kubectl apply -f argocd/argocd-rbac-cm.yaml
+          if [ -f "argocd/patches/argocd-rbac-cm.yaml" ]; then
+            kubectl apply -f argocd/patches/argocd-rbac-cm.yaml
+          fi
+          
+          # Create ArgoCD project
+          if [ -f "argocd/project.yaml" ]; then
+            kubectl apply -f argocd/project.yaml
+          fi
+          
+          # Create repository secret for Git access
+          if [ -f "argocd/repo-secret.yaml" ]; then
+            kubectl apply -f argocd/repo-secret.yaml
+          fi
+          
+          # Apply ArgoCD Application
+          if [ -f "argocd/app-bluegreen.yaml" ]; then
+            kubectl apply -f argocd/app-bluegreen.yaml
           fi
 
           kubectl rollout status deployment/argocd-server -n argocd || true
