@@ -227,12 +227,12 @@ terraform output aks_identity_client_id
 
 ## Security Best Practices
 
-1. ✅ Use separate managed identities per application (principle of least privilege)
-2. ✅ Grant only necessary Key Vault permissions (get, list for secrets)
-3. ✅ Use specific secret versions in production (don't use latest)
-4. ✅ Enable Key Vault RBAC for better access control
-5. ✅ Regularly rotate secrets in Key Vault
-6. ✅ Monitor Key Vault access logs
+1. Use separate managed identities per application (principle of least privilege)
+2. Grant only necessary Key Vault permissions (get, list for secrets)
+3. Use specific secret versions in production (don't use latest)
+4. Enable Key Vault RBAC for better access control
+5. Regularly rotate secrets in Key Vault
+6. Monitor Key Vault access logs
 
 ## Additional Resources
 
