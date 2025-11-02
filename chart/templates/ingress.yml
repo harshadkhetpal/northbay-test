@@ -2,10 +2,10 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ include "nginx-bluegreen.fullname" . }}-ingress
+  name: {{ include "dubai-ml.fullname" . }}-ingress
   labels:
-    {{- include "nginx-bluegreen.labels" . | nindent 4 }}
-    app: {{ include "nginx-bluegreen.name" . }}
+    {{- include "dubai-ml.labels" . | nindent 4 }}
+    app: {{ include "dubai-ml.name" . }}
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
@@ -19,7 +19,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: {{ include "nginx-bluegreen.serviceName" . }}
+                name: {{ include "dubai-ml.serviceName" . }}
                 port:
                   number: {{ .Values.service.port }}
 {{- end }}

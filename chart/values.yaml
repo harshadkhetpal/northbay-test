@@ -13,7 +13,7 @@ activeVersion: blue
 
 serviceAccount:
   create: true
-  name: nginx-sa
+  name: dubai-ml-sa
   # Note: workloadIdentityClientId comes from values-terraform.yaml via terraformConfig
 
 resources:
@@ -79,5 +79,5 @@ autoscaling:
   enabled: false  # Set to true to enable HPA
   minReplicas: 1
   maxReplicas: 10
-  targetDeployment: "nginx-blue"  # Deployment to scale: "nginx-blue" or "nginx-green"
+  targetDeployment: "dubai-ml-blue"  # Deployment to scale: "dubai-ml-blue" or "dubai-ml-green"
   cpuAverageUtilization: 80  # Target CPU utilization percentage

@@ -2,9 +2,9 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "nginx-bluegreen.fullname" . }}-hpa
+  name: {{ include "dubai-ml.fullname" . }}-hpa
   labels:
-    {{- include "nginx-bluegreen.labels" . | nindent 4 }}
+    {{- include "dubai-ml.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1

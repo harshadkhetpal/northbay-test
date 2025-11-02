@@ -1,15 +1,15 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "nginx-bluegreen.serviceName" . }}
+  name: {{ include "dubai-ml.serviceName" . }}
   labels:
-    {{- include "nginx-bluegreen.labels" . | nindent 4 }}
-    app: nginx
+    {{- include "dubai-ml.labels" . | nindent 4 }}
+    app: dubai-realestate-ml
 spec:
   type: {{ .Values.service.type }}
   selector:
-    {{- include "nginx-bluegreen.selectorLabels" . | nindent 4 }}
-    app: nginx
+    {{- include "dubai-ml.selectorLabels" . | nindent 4 }}
+    app: dubai-realestate-ml
     version: {{ .Values.activeVersion }}  
   ports:
     - port: {{ .Values.service.port }}

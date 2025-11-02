@@ -1,26 +1,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-green
+  name: dubai-ml-green
   labels:
-    {{- include "nginx-bluegreen.labels" . | nindent 4 }}
-    app: nginx
+    {{- include "dubai-ml.labels" . | nindent 4 }}
+    app: dubai-realestate-ml
     version: green
 spec:
   # True Blue-Green: Both versions always exist, replicas control which is active
   replicas: {{ if eq .Values.activeVersion "green" }}{{ .Values.replicaCount }}{{ else }}0{{ end }}
   selector:
     matchLabels:
-      {{- include "nginx-bluegreen.selectorLabels" . | nindent 6 }}
-      app: nginx
+      {{- include "dubai-ml.selectorLabels" . | nindent 6 }}
+      app: dubai-realestate-ml
       version: green
   strategy:
     type: Recreate  # Better for Blue-Green: ensures all pods are ready before switching traffic
   template:
     metadata:
       labels:
-        {{- include "nginx-bluegreen.selectorLabels" . | nindent 8 }}
-        app: nginx
+        {{- include "dubai-ml.selectorLabels" . | nindent 8 }}
+        app: dubai-realestate-ml
         version: green
     spec:
       securityContext:
@@ -79,7 +79,7 @@ spec:
             driver: secrets-store.csi.k8s.io
             readOnly: true
             volumeAttributes:
-              secretProviderClass: {{ include "nginx-bluegreen.fullname" $ }}-kv
+              secretProviderClass: {{ include "dubai-ml.fullname" $ }}-kv
       {{- end }}
       {{- end }}
         # Temporary volume for FastAPI
@@ -91,3 +91,4 @@ spec:
         {{- toYaml .Values.tolerations | nindent 8 }}
       affinity:
         {{- toYaml .Values.affinity | nindent 8 }}
+
